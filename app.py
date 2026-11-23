@@ -18,52 +18,106 @@ st.write("Turn long videos into vertical Shorts automatically!")
 
 st.divider()
 
+# VIDEO URL
+st.subheader("🔗 YouTube Video URL")
+
+video_url = st.text_input(
+    "Paste your YouTube video URL",
+    placeholder="https://www.youtube.com/watch?v=..."
+)
+
+st.caption(
+    "URL import is not connected yet. "
+    "Use your own or authorized video files for now."
+)
+
+st.divider()
+
+# VIDEO UPLOAD
 st.subheader("📤 Upload Your Video")
 
 video = st.file_uploader(
-    "Upload your own or authorized video",
+    "Choose a video file",
     type=["mp4", "mov", "mkv", "webm"]
 )
 
-st.subheader("⚙️ Video Settings")
+# SETTINGS
+st.divider()
+st.subheader("⚙️ AI Shorts Settings")
 
 duration = st.selectbox(
-    "Each Short Duration",
+    "Short Video Duration",
     [30, 45, 60],
     index=2
 )
 
 max_clips = st.slider(
-    "Number of Shorts",
+    "Maximum Number of Shorts",
     1, 10, 5
 )
 
-st.info("Output: MP4 | 9:16 Vertical | 1080 × 1920")
+categories = st.multiselect(
+    "Select Moments",
+    [
+        "Funny 😂",
+        "Romantic ❤️",
+        "Action ⚔️",
+        "Emotional 🥺",
+        "Shocking 😱",
+        "Viral 🔥"
+    ],
+    default=[
+        "Funny 😂",
+        "Action ⚔️",
+        "Emotional 🥺"
+    ]
+)
 
-if st.button("✨ Generate Shorts", use_container_width=True):
+st.info("Output Format: 9:16 Vertical | MP4")
+
+# GENERATE BUTTON
+if st.button(
+    "✨ Generate AI Shorts",
+    use_container_width=True
+):
 
     if video is None:
-        st.error("Please upload a video first.")
+
+        if video_url.strip():
+            st.warning(
+                "YouTube URL import is not connected yet. "
+                "Please upload an authorized video file."
+            )
+        else:
+            st.error(
+                "Please enter a video URL or upload a video."
+            )
 
     else:
-        with st.spinner("Preparing your video..."):
 
-            workdir = tempfile.mkdtemp()
+        workdir = tempfile.mkdtemp()
 
-            input_path = os.path.join(workdir, "input_video")
-            with open(input_path, "wb") as f:
-                f.write(video.getbuffer())
+        input_path = os.path.join(
+            workdir, "input_video"
+        )
 
-            cap = cv2.VideoCapture(input_path)
+        with open(input_path, "wb") as f:
+            f.write(video.getbuffer())
 
-            fps = cap.get(cv2.CAP_PROP_FPS)
-            frames = cap.get(cv2.CAP_PROP_FRAME_COUNT)
+        st.info("Checking video...")
 
-            cap.release()
+        cap = cv2.VideoCapture(input_path)
 
-            if not fps or fps <= 0 or frames <= 0:
-                st.error("Could not read this video.")
-                st.stop()
+        fps = cap.get(cv2.CAP_PROP_FPS)
+        frames = cap.get(cv2.CAP_PROP_FRAME_COUNT)
+
+        cap.release()
+
+        if not fps or fps <= 0 or frames <= 0:
+
+            st.error("Unable to read this video.")
+
+        else:
 
             total_seconds = frames / fps
 
@@ -82,18 +136,22 @@ if st.button("✨ Generate Shorts", use_container_width=True):
             for i in range(total_clips):
 
                 start = i * duration
-                remaining = total_seconds - start
-                clip_duration = min(duration, remaining)
+
+                clip_duration = min(
+                    duration,
+                    total_seconds - start
+                )
 
                 if clip_duration <= 0:
                     break
 
                 output_path = os.path.join(
-                    workdir, f"short_{i+1}.mp4"
+                    workdir,
+                    f"short_{i+1}.mp4"
                 )
 
                 status.write(
-                    f"Creating Short {i+1} of {total_clips}..."
+                    f"Creating Short {i+1} of {total_clips}"
                 )
 
                 command = [
@@ -109,8 +167,8 @@ if st.button("✨ Generate Shorts", use_container_width=True):
                     "-crf", "23",
                     "-c:a", "aac",
                     "-b:a", "128k",
-                    "-movflags", "+faststart",
                     "-pix_fmt", "yuv420p",
+                    "-movflags", "+faststart",
                     output_path
                 ]
 
@@ -120,25 +178,37 @@ if st.button("✨ Generate Shorts", use_container_width=True):
                     text=True
                 )
 
-                if result.returncode == 0 and os.path.exists(output_path):
+                if (
+                    result.returncode == 0
+                    and os.path.exists(output_path)
+                ):
                     results.append(output_path)
 
-                progress.progress((i + 1) / total_clips)
+                progress.progress(
+                    (i + 1) / total_clips
+                )
 
             status.empty()
 
             if results:
-                st.session_state["shorts_results"] = results
-                st.success(
-                    f"Successfully created {len(results)} Shorts!"
-                )
-            else:
-                st.error("Video processing failed. Please try another video.")
 
+                st.session_state["shorts_results"] = results
+
+                st.success(
+                    f"Created {len(results)} Shorts successfully!"
+                )
+
+            else:
+
+                st.error(
+                    "Video processing failed. Try another video."
+                )
+
+# RESULTS
 if "shorts_results" in st.session_state:
 
     st.divider()
-    st.header("🎬 Your Generated Shorts")
+    st.header("🎬 Your Shorts")
 
     for index, path in enumerate(
         st.session_state["shorts_results"]
@@ -148,29 +218,34 @@ if "shorts_results" in st.session_state:
 
         st.video(path)
 
+        with open(path, "rb") as f:
+            video_data = f.read()
+
         st.download_button(
             "⬇️ Download MP4",
-            data=open(path, "rb").read(),
+            data=video_data,
             file_name=f"ai_short_{index+1}.mp4",
             mime="video/mp4",
             key=f"download_{index}"
         )
 
-        st.markdown("**Social Media Caption**")
-
         caption = (
-            f"Watch this amazing moment! 🔥\n\n"
-            f"#Shorts #YouTubeShorts #Reels #Viral"
+            "Watch this amazing moment! 🔥\n\n"
+            "#Shorts #YouTubeShorts #Reels #Viral"
         )
 
+        st.markdown("**Social Media Caption**")
         st.code(caption)
 
         st.button(
-            "📋 Copy caption",
-            key=f"caption_{index}",
+            "📋 Copy Caption",
+            key=f"copy_{index}",
             on_click=st.toast,
-            args=("Caption: " + caption, "success")
+            args=("Caption ready!",)
         )
 
 st.divider()
-st.caption("AI Shorts Generator | Version 2.0")
+
+st.caption(
+    "AI Shorts Generator | Version 3.0"
+)
